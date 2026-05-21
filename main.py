@@ -5,7 +5,7 @@ from queue_worker import analyze_sentiment
 from models import ChatMessage
 import asyncio
 
-
+Base.metadata.create_all(bind=engine) #This line tells SQLAlchemy:“Take all my ORM models and physically create their tables in the database.”
 
 app = FastAPI()
 
@@ -43,3 +43,23 @@ async def history(user_id: int):
     db = SessionLocal()
     messages = db.query(ChatMessage).filter(ChatMessage.user_id == user_id).all()
     return messages
+
+@app.get("/stats")
+async def stats():
+
+    db = SessionLocal()
+    total_chats = db.query(ChatMessage).count()
+    total_users = db.query(ChatMessage.user_id).distinct().count()
+    anxiety_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "anxious").count()
+    sad_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "sad").count()
+    happy_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "happy").count
+    excited_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "excited").count()
+
+    return {
+        "total_chats": total_chats,
+        "total_users": total_users, 
+        "anxiety_detection": anxiety_detection,
+        "sad_detection": sad_detection,
+        "happy_detection": happy_detection,
+        "excited_detection": excited_detection
+        }
