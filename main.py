@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from cache import get_cached, create_cache
 from database import SessionLocal, engine, Base
 from queue_worker import analyze_sentiment
@@ -14,8 +14,20 @@ class ChatRequest(BaseModel):
     user_id: int
     message: str
 
+async def process_sentiment(message_id, message):
+    db = SessionLocal()
+    sentiment = await analyze_sentiment(message)
+
+    target_message = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+    target_message.sentiment = sentiment
+    db.commit()
+    db.close()
+    return(f"UPDATED BACKGROUND TASK: {sentiment}")
+    
+    
+
 @app.post("/chat")
-async def chat(data: ChatRequest):
+async def chat(data: ChatRequest, background_tasks: BackgroundTasks):
 
     user_id = data.user_id
     message = data.message
@@ -36,22 +48,24 @@ async def chat(data: ChatRequest):
     for msg in previous_messages:
         print(msg.message)
 
-    sentiment = await analyze_sentiment(message)
     if len(previous_messages) >= 3:
         bot_response = "I remember our convo!"
     else:
         bot_response = "Tell me more!"
 
-    msg = ChatMessage(user_id=user_id, message=message, sentiment=sentiment)
+    msg = ChatMessage(user_id=user_id, message=message, sentiment="processing")
     db.add(msg)
     db.commit()
+    db.refresh(msg) #auto generate id for the new message and update the msg object with it
+
+    background_tasks.add_task(process_sentiment,msg.id, message)
 
     previous_messages.append(msg)
     create_cache(user_id, previous_messages)
 
     response = { 
         "message": message,
-        "sentiment": sentiment,
+        "sentiment status": "processing",
         "bot_response": bot_response
     }
 
@@ -59,6 +73,21 @@ async def chat(data: ChatRequest):
 
     return response
 
+@app.get("/messages/{user_id}")
+async def get_messages(user_id: int):
+
+    db = SessionLocal()
+    messages = db.query(ChatMessage).filter(ChatMessage.user_id == user_id).all()
+
+    result = []
+    for msg in messages:
+        result.append({
+            "message": msg.message,
+            "sentiment": msg.sentiment
+        })
+
+    db.close()
+    return result
 
 @app.get("/history/{user_id}")
 async def history(user_id : int):
