@@ -3,42 +3,67 @@ from cache import get_cached, create_cache
 from database import SessionLocal, engine, Base
 from queue_worker import analyze_sentiment
 from models import ChatMessage
+from pydantic import BaseModel
 import asyncio
 
 Base.metadata.create_all(bind=engine) #This line tells SQLAlchemy:“Take all my ORM models and physically create their tables in the database.”
 
 app = FastAPI()
 
+class ChatRequest(BaseModel):
+    user_id: int
+    message: str
+
 @app.post("/chat")
-async def chat(user_id:int , message:str):
+async def chat(data: ChatRequest):
+
+    user_id = data.user_id
+    message = data.message
+
+    db = SessionLocal()
 
     cached = get_cached(user_id)
 
     if cached:
         print("Cache hit")
-        return cached
+        previous_messages = cached
     else:
         print("Cache miss/ new")
+        previous_messages = db.query(ChatMessage).filter(ChatMessage.user_id == data.user_id).all()
+        create_cache(user_id, previous_messages)
 
-    db = SessionLocal()
+    print("PREVIOUS MESSAGES")
+    for msg in previous_messages:
+        print(msg.message)
+
     sentiment = await analyze_sentiment(message)
+    if len(previous_messages) >= 3:
+        bot_response = "I remember our convo!"
+    else:
+        bot_response = "Tell me more!"
 
     msg = ChatMessage(user_id=user_id, message=message, sentiment=sentiment)
     db.add(msg)
     db.commit()
 
+    previous_messages.append(msg)
+    create_cache(user_id, previous_messages)
+
     response = { 
-        message: message,
-        sentiment: sentiment
+        "message": message,
+        "sentiment": sentiment,
+        "bot_response": bot_response
     }
 
-    create_cache(user_id, response)
+    db.close()
 
     return response
 
 
 @app.get("/history/{user_id}")
-async def history(user_id: int):
+async def history(user_id : int):
+
+    user_id = user_id
 
     db = SessionLocal()
     messages = db.query(ChatMessage).filter(ChatMessage.user_id == user_id).all()
