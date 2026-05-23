@@ -18,3 +18,13 @@ def create_cache(user_id, messages):
         json.dumps(serialized)
         ex = 60
     )
+
+#retreive cache
+def get_cached(user_id):
+
+    data = r.get(f"user:{user_id}")
+
+    if data:
+        return json.loads(data)
+    
+    return None
