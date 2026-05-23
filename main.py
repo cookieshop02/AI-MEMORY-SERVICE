@@ -1,5 +1,5 @@
 from fastapi import FastAPI, BackgroundTasks
-from cache import get_cached, create_cache
+from redis_cache import get_cached, create_cache
 from database import SessionLocal, engine, Base
 from queue_worker import analyze_sentiment
 from models import ChatMessage
