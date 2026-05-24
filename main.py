@@ -1,7 +1,7 @@
 from fastapi import FastAPI, BackgroundTasks
 from redis_cache import get_cached, create_cache
 from database import SessionLocal, engine, Base
-from queue_worker import analyze_sentiment
+from celery_worker import analyze_sentiment
 from models import ChatMessage
 from pydantic import BaseModel
 import asyncio
@@ -14,9 +14,12 @@ class ChatRequest(BaseModel):
     user_id: int
     message: str
 
-async def process_sentiment(message_id, message):
+def process_sentiment(message_id, message):
+
     db = SessionLocal()
-    sentiment = await analyze_sentiment(message)
+
+    sentiment = analyze_sentiment.delay(message).get()
+    print(f"BACKGROUND TASK RESULT: {sentiment}")
 
     target_message = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
     target_message.sentiment = sentiment
