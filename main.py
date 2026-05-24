@@ -109,7 +109,7 @@ async def stats():
     total_users = db.query(ChatMessage.user_id).distinct().count()
     anxiety_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "anxious").count()
     sad_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "sad").count()
-    happy_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "happy").count
+    happy_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "happy").count()
     excited_detection = db.query(ChatMessage).filter(ChatMessage.sentiment == "excited").count()
 
     return {
